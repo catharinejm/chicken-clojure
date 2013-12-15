@@ -1,12 +1,12 @@
 (use srfi-69)
+(use lolevel)
 
 (define-record protocol name impls sigs)
 
 (define (protocol-dispatch-type obj)
   (cond
-   ((and (not (##sys#immediate? obj))
-         (##sys#generic-structure? obj))
-    (##sys#slot obj 0))
+   ((record-instance? obj) (record-instance-type obj))
+   ((extended-procedure? obj) (protocol-dispatch-type (procedure-data obj)))
    ((pair? obj) 'pair)
    ((vector? obj) 'vector)
    ((string? obj) 'string)
@@ -47,7 +47,10 @@
                                   ,@(map (lambda (s)
                                            (list s
                                                  `((protocol-dispatch-fn ,(ren pname) ,(car s) ',(car sig))
-                                                   ,@s)))
+                                                   (if (extended-procedure? ,(car s))
+                                                     (procedure-data ,(car s))
+                                                     ,(car s))
+                                                   ,@(cdr s))))
                                          (cdr sig)))))
                  sigs))))))
 
