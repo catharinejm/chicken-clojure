@@ -1,7 +1,8 @@
 (load-relative "protocols.scm")
 (use lolevel)
+(use srfi-1)
 
-(define-record Type name protocols)
+(define-record Type name fields protocols)
 (define-record-printer (Type ty port)
   (write (Type-name ty) port))
 
@@ -10,6 +11,28 @@
    ((null? lis) #t)
    ((symbol? (car lis)) (all-syms? (cdr lis)))
    (else #f)))
+
+(define-for-syntax (inject-fields ren type fields protocols)
+  (let loop ((pdefs protocols))
+    (cond
+     ((null? pdefs) '())
+     ((symbol? (car pdefs)) (cons (car pdefs) (loop (cdr pdefs))))
+     ((list? (car pdefs))
+      (if (not (pair? (car pdefs))) (syntax-error "Invalid method implementation"))
+      (let ((impl (car pdefs)))
+        (if (not (symbol? (car impl))) (syntax-error "Method name must be a symbol"))
+        (if (or (not (pair? (cdr impl)))
+                (not (pair? (cadr impl)))) (syntax-error "Method requires a lambda list"))
+        (let ((field-shadows (lset-difference eq? fields (cadr impl))))
+          (cons (list (car impl)
+                      (cadr impl)
+                      `(let (,@(map (lambda (f) (list f
+                                                      (list (string->symbol (conc (ren type) "-" (ren f)))
+                                                            (caadr impl))))
+                                    field-shadows))
+                         ,@(cddr impl)))
+                (loop (cdr pdefs))))))
+     (else (syntax-error "Something is wrong :/")))))
 
 (define-syntax deftype
   (ir-macro-transformer
@@ -23,11 +46,11 @@
      (let* ((name (cadr form))
             (fields (caddr form))
             (protocols (cdddr form)))
-       `(let ((new-type (make-Type ',name ',protocols)))
+       `(let ((new-type (make-Type ',name ',fields ',protocols)))
           (##core#set! ,(r name) new-type)
           (define-record ,name ,@fields)
           ,(if (not (null? protocols))
-             `(extend-type ,name ,@protocols)
+             `(extend-type ,name ,@(inject-fields r name fields protocols))
              '(void))
           new-type)))))
 
