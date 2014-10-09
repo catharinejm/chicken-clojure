@@ -18,7 +18,6 @@
      ((null? pdefs) '())
      ((symbol? (car pdefs)) (cons (car pdefs) (loop (cdr pdefs))))
      ((list? (car pdefs))
-      (if (not (pair? (car pdefs))) (syntax-error "Invalid method implementation"))
       (let ((impl (car pdefs)))
         (if (not (symbol? (car impl))) (syntax-error "Method name must be a symbol"))
         (if (or (not (pair? (cdr impl)))
@@ -32,7 +31,7 @@
                                     field-shadows))
                          ,@(cddr impl)))
                 (loop (cdr pdefs))))))
-     (else (syntax-error "Something is wrong :/")))))
+     (else (syntax-error "Invalid method implementation")))))
 
 (define-syntax deftype
   (ir-macro-transformer
